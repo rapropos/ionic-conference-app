@@ -20,7 +20,7 @@ export class SchedulePage {
   queryText = '';
   segment = 'all';
   excludeTracks = [];
-  shownSessions = [];
+  shownSessions = 0;
   groups = [];
 
   constructor(
@@ -44,7 +44,7 @@ export class SchedulePage {
     // Close any open sliding items when the schedule updates
     this.scheduleList && this.scheduleList.closeSlidingItems();
 
-    this.confData.getTimeline(this.dayIndex, this.queryText, this.excludeTracks, this.segment).then(data => {
+    this.confData.getTimeline(this.dayIndex, this.queryText, this.excludeTracks, this.segment).subscribe(data => {
       this.shownSessions = data.shownSessions;
       this.groups = data.groups;
     });
