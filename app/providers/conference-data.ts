@@ -159,7 +159,7 @@ export class ConferenceData {
   }
 
   getTimeline(dayIndex:number, queryText:string = '',
-              excludeTracks:string[] = [], segment:string = 'all') {
+              excludeTracks:string[] = [], segment:string = 'all'):Observable<ConferenceScheduleDay> {
     return this.cache.map(data => {
       let day = data.schedule[dayIndex];
       day.shownSessions = 0;
@@ -188,7 +188,7 @@ export class ConferenceData {
   }
 
   filterSession(session:ConferenceSession, queryWords:string[] = [],
-                excludeTracks:string[] = [], segment:string = 'all') {
+                excludeTracks:string[] = [], segment:string = 'all'):void {
     let matchesQueryText = false;
     if (queryWords.length) {
       // of any query word is in the session name than it passes the query test
@@ -226,19 +226,19 @@ export class ConferenceData {
     session.hide = !(matchesQueryText && matchesTracks && matchesSegment);
   }
 
-  getSpeakers() {
+  getSpeakers():Observable<ConferenceSpeaker[]> {
     return this.cache.map(data => {
       return data.speakers;
     });
   }
 
-  getTracks() {
+  getTracks():Observable<string[]> {
     return this.cache.map(data => {
       return data.tracks;
     });
   }
 
-  getMap() {
+  getMap():Observable<ConferenceLocation[]> {
     return this.cache.map(data => {
       return data.map;
     });
