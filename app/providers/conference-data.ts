@@ -1,35 +1,112 @@
 import {Injectable} from '@angular/core';
+import {Observable, ReplaySubject} from 'rxjs/Rx';
 import {Http} from '@angular/http';
 import {UserData} from './user-data';
 
+// This can be done anywhere in the application, but each Rx operator
+// must be explicitly imported once.
+import "rxjs/add/operator/map";
+
+export interface ConferenceSpeaker {
+  name: string;
+  profilePic: string;
+  twitter: string;
+  about: string;
+  sessions: ConferenceSession[];
+}
+
+export interface ConferenceSession {
+  name: string;
+  location: string;
+  description?: string;
+  timeStart: string;
+  timeEnd: string;
+  tracks: string[];
+  speakerNames?: string[];
+  speakers?: ConferenceSpeaker[];
+  hide?: boolean;
+}
+
+export interface ConferenceScheduleBlock {
+  time: string;
+  sessions: ConferenceSession[];
+  hide?: boolean;
+}
+
+export interface ConferenceScheduleDay {
+  date: string;
+  groups: ConferenceScheduleBlock[];
+  shownSessions?: number;
+}
+
+// TODO: I would like to extend google.maps.LatLngLiteral here, but
+// it is defined as a closed type, not an interface, so this is impossible
+export interface ConferenceLocation {
+  name: string;
+  lat: string;
+  lng: string;
+  center?: boolean;
+}
+
+export interface FullConferenceData {
+  schedule: ConferenceScheduleDay[];
+  speakers: ConferenceSpeaker[];
+  map: ConferenceLocation[];
+  tracks?: string[];
+}
 
 @Injectable()
 export class ConferenceData {
-  data: any;
+  // This member is private for two main reasons:
+  // - prevents modification from outside
+  // - allows it to be exposed as a supertype
+  //
+  // Using a ReplaySubject here with a stack depth of 1 ensures that
+  // only the freshest data is always available to clients
+  private cache: ReplaySubject<FullConferenceData> = new ReplaySubject<FullConferenceData>(1);
 
-  constructor(private http: Http, private user: UserData) {}
-
-  load() {
-    if (this.data) {
-      // already loaded data
-      return Promise.resolve(this.data);
-    }
-
-    // don't have the data yet
-    return new Promise(resolve => {
-      // We're using Angular Http provider to request the data,
-      // then on the response it'll map the JSON data to a parsed JS object.
-      // Next we process the data and resolve the promise with the new data.
-      this.http.get('data/data.json').subscribe(res => {
-        // we've got back the raw data, now generate the core schedule data
-        // and save the data for later reference
-        this.data = this.processData(res.json());
-        resolve(this.data);
-      });
-    });
+  constructor(private http: Http, private user: UserData) {
+    // We assume that the data should always be fetched once as soon as
+    // this object is instantiated. In real-world client-server applications,
+    // you could choose to prime from a locally stored cache here instead.
+    this.refresh();
   }
 
-  processData(data) {
+  // This method can be called as many times as desired, and will
+  // automatically update all exposed assets. This would be
+  // meaningful in a client-server situation where the server could
+  // be constantly having updated data. In this example, since the
+  // data never changes, calling it repeatedly won't have any
+  // practical effect.
+
+  refresh():void {
+    // We're using Angular Http provider to request the data
+    this.http.get('data/data.json')
+      // Parse the Http Response object as JSON
+      .map(res => {
+        // While it's not really needed to assign this to a local variable,
+        // and the result of calling res.json() could be returned directly,
+        // this extra statement allows you to easily set a breakpoint in
+        // your code to see if things are proceeding through the pipeline
+        // as expected.
+        let flatdata = res.json();
+        return flatdata;
+      })
+      // Now we reanimate the flat data that is received from the server
+      // into an object graph that can be consumed more easily in our app.
+      .map(data => {
+        this.processData(data);
+        return data;
+      })
+      // Subscribing our instance subject here causes it to be updated with
+      // the processed new data
+      .subscribe(this.cache, err => {
+        // There are a number of ways to report errors back
+        console.log(err);
+      });
+  }
+
+  private processData(data:FullConferenceData): void {
     // just some good 'ol JS fun with objects and arrays
     // build up the data by linking speakers to sessions
 
@@ -46,10 +123,18 @@ export class ConferenceData {
       });
     });
 
-    return data;
+    // alphabetize speakers
+    data.speakers.sort((a, b) => {
+      let aName = a.name.split(' ').pop();
+      let bName = b.name.split(' ').pop();
+      return aName.localeCompare(bName);
+    });
+
+    // sort tracks
+    data.tracks.sort();
   }
 
-  processSession(data, session) {
+  private processSession(data:FullConferenceData, session:ConferenceSession):void {
     // loop through each speaker and load the speaker data
     // using the speaker name as the key
     session.speakers = [];
@@ -73,8 +158,9 @@ export class ConferenceData {
     }
   }
 
-  getTimeline(dayIndex, queryText = '', excludeTracks = [], segment = 'all') {
-    return this.load().then(data => {
+  getTimeline(dayIndex:number, queryText:string = '',
+              excludeTracks:string[] = [], segment:string = 'all') {
+    return this.cache.map(data => {
       let day = data.schedule[dayIndex];
       day.shownSessions = 0;
 
@@ -101,8 +187,8 @@ export class ConferenceData {
     });
   }
 
-  filterSession(session, queryWords, excludeTracks, segment) {
-
+  filterSession(session:ConferenceSession, queryWords:string[] = [],
+                excludeTracks:string[] = [], segment:string = 'all') {
     let matchesQueryText = false;
     if (queryWords.length) {
       // of any query word is in the session name than it passes the query test
@@ -141,25 +227,20 @@ export class ConferenceData {
   }
 
   getSpeakers() {
-    return this.load().then(data => {
-      return data.speakers.sort((a, b) => {
-        let aName = a.name.split(' ').pop();
-        let bName = b.name.split(' ').pop();
-        return aName.localeCompare(bName);
-      });
+    return this.cache.map(data => {
+      return data.speakers;
     });
   }
 
   getTracks() {
-    return this.load().then(data => {
-      return data.tracks.sort();
+    return this.cache.map(data => {
+      return data.tracks;
     });
   }
 
   getMap() {
-    return this.load().then(data => {
+    return this.cache.map(data => {
       return data.map;
     });
   }
-
 }

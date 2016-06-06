@@ -9,11 +9,14 @@ export class MapPage {
   constructor(private confData: ConferenceData) {}
 
   ionViewLoaded() {
-    this.confData.getMap().then(mapData => {
+    this.confData.getMap().subscribe(mapData => {
       let mapEle = document.getElementById('map');
 
       let map = new google.maps.Map(mapEle, {
-        center: mapData.find(d => d.center),
+        // TODO: It's unfortunate that MapOptions.center is typed as only accepting
+        // a LatLng, because using a LatLngLiteral (which we have) also works.
+        // Temporarily need to kludge TypeScript around this.
+        center: <any> mapData.find(d => d.center),
         zoom: 16
       });
 
@@ -23,7 +26,10 @@ export class MapPage {
         });
 
         let marker = new google.maps.Marker({
-          position: markerData,
+          // TODO: It's unfortunate that MarkerOptions.position is typed as only accepting
+          // a LatLng, because using a LatLngLiteral (which we have) also works.
+          // Temporarily need to kludge TypeScript around this.
+          position: <any> markerData,
           map: map,
           title: markerData.name
         });
