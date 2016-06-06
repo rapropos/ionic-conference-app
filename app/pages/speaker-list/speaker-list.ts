@@ -12,7 +12,7 @@ export class SpeakerListPage {
   speakers = [];
 
   constructor(private nav: NavController, confData: ConferenceData) {
-    confData.getSpeakers().then(speakers => {
+    confData.getSpeakers().subscribe(speakers => {
       this.speakers = speakers;
     });
   }

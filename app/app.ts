@@ -57,17 +57,13 @@ class ConferenceApp {
     private events: Events,
     private userData: UserData,
     private menu: MenuController,
-    platform: Platform,
-    confData: ConferenceData
+    platform: Platform
   ) {
     // Call any initial plugins when ready
     platform.ready().then(() => {
       StatusBar.styleDefault();
       Splashscreen.hide();
     });
-
-    // load the conference data
-    confData.load();
 
     // decide which menu items should be hidden by current login status stored in local storage
     this.userData.hasLoggedIn().then((hasLoggedIn) => {
